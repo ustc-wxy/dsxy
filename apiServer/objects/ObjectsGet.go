@@ -1,9 +1,10 @@
 package objects
 
 import (
+	"dsxy/apiServer/heartbeat"
 	"dsxy/apiServer/locate"
 	"dsxy/es"
-	"dsxy/objectstream"
+	"dsxy/rs"
 	"fmt"
 	"io"
 	"log"
@@ -47,19 +48,44 @@ func get(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	object := url.PathEscape(meta.Hash)
-	stream, e := getStream(object)
+	//object := url.PathEscape(meta.Hash)
+	//stream, e := getStream(object)
+	hash := url.PathEscape(meta.Hash)
+	size := meta.Size
+	stream, e := GetStream(hash, size)
+
 	if e != nil {
 		log.Println(e)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	io.Copy(w, stream)
-}
-func getStream(object string) (io.Reader, error) {
-	server := locate.Locate(object)
-	if server == "" {
-		return nil, fmt.Errorf("object %s locate fail", object)
+	_, e = io.Copy(w, stream)
+	if e != nil {
+		log.Println(e)
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
-	return objectstream.NewGetStream(server, object)
+
 }
+
+func GetStream(hash string, size int64) (*rs.RSGetStream, error) {
+	locateInfo := locate.Locate(hash)
+	if len(locateInfo) < rs.DATA_SHARDS {
+		return nil, fmt.Errorf("object %s locate fail,result %v", hash, locateInfo)
+	}
+	dataServers := make([]string, 0)
+	if len(locateInfo) != rs.ALL_SHARDS {
+		dataServers = heartbeat.ChooseRandomDataServer(
+			rs.ALL_SHARDS-len(locateInfo), locateInfo)
+	}
+	return rs.NewRSGetStream(locateInfo, dataServers, hash, size)
+
+}
+
+//func getStream(object string) (io.Reader, error) {
+//	server := locate.Locate(object)
+//	if server == "" {
+//		return nil, fmt.Errorf("object %s locate fail", object)
+//	}
+//	return objectstream.NewGetStream(server, object)
+//}

@@ -51,11 +51,36 @@ func GetDataServers() []string {
 	return ds
 }
 
-func ChooseRandomDataServer() string {
-	ds := GetDataServers()
-	n := len(ds)
-	if n == 0 {
-		return ""
+func ChooseRandomDataServer(n int, exclude map[int]string) (ds []string) {
+	candidates := make([]string, 0)
+	use := make(map[string]bool)
+	for _, addr := range exclude {
+		use[addr] = true
 	}
-	return ds[rand.Intn(n)]
+	servers := GetDataServers()
+	for _, s := range servers {
+		_, ok := use[s]
+		if !ok {
+			candidates = append(candidates, s)
+		}
+	}
+	length := len(candidates)
+	if length < n {
+		return nil
+	}
+	p := rand.Perm(length)
+	for i := 0; i < n; i++ {
+		ds = append(ds, candidates[p[i]])
+
+	}
+	return ds
 }
+
+//func ChooseRandomDataServer() string {
+//	ds := GetDataServers()
+//	n := len(ds)
+//	if n == 0 {
+//		return ""
+//	}
+//	return ds[rand.Intn(n)]
+//}
